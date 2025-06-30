@@ -10,8 +10,11 @@
 
 Follow these steps:
 
-### 1. Clone the repository  
-Run: `git clone https://github.com/muharamdani/FantechX9ThorDriver.git` lalu `cd FantechX9ThorDriver`
+### 1. Clone the repository
+```bash
+git clone https://github.com/muharamdani/FantechX9ThorDriver.git...
+
+cd FantechX9ThorDriver
 
 ### 2. Install required Python module  
 Run: `pip install pyusb`  
