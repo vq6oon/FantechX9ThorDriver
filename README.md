@@ -58,7 +58,7 @@ Categories=Utility;
 ```
 Save & exit
 
-### 3. Copy file yout .desktop file
+### 3. Copy file your .desktop file
 ```bash
 cp fantech-x9.desktop ~/.local/share/applications/
 ```
