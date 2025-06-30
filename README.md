@@ -14,7 +14,7 @@ Follow these steps:
 ```bash
 git clone https://github.com/muharamdani/FantechX9ThorDriver.git
 ```
-
+enter the dir
 ```bash
 cd FantechX9ThorDriver
 ```
@@ -24,7 +24,8 @@ cd FantechX9ThorDriver
 pip install pyusb
 ```
 Or if you use Arch Linux: 
-```bash yay -S python-pyusb
+```bash
+yay -S python-pyusb
 ```
 
 ### 3. Run the script  
