@@ -2,9 +2,9 @@
 
 ### 🔧 Requirements / Dependencies
 
-· Python 3  
-· Gtk3 & gobject-introspection  
-· Module pyusb  
+- Python 3
+- Gtk3 & gobject-introspection
+- Module pyusb  
 
 ### 🚀 Langkah-langkah / Installation / Usage
 
