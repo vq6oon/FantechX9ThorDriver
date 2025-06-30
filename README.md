@@ -33,7 +33,7 @@ yay -S python-pyusb
 python3 driver_frontend.py
 ```
 
-### 🔗 **Menjadikan aplikasi ini app desktop (`.desktop`)**
+### 🔗 Turn this to app .desktop
 
 Follow these steps:
 
