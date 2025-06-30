@@ -12,7 +12,8 @@
 Follow these steps:
 
 ### 1. Clone the repository
-```git clone https://github.com/muharamdani/FantechX9ThorDriver.git```
+```bash
+git clone https://github.com/muharamdani/FantechX9ThorDriver.git```
 
 ```cd FantechX9ThorDriver```
 
