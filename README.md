@@ -33,5 +33,41 @@ yay -S python-pyusb
 python3 driver_frontend.py
 ```
 
-✅ Done!
+### 🔗 **Menjadikan aplikasi ini app desktop (`.desktop`)**
+
+Follow these steps:
+
+### 1. Open your terminal
+type
+```bash
+cd ~/
+```
+### 2. Create a `.desktop` file
+
+Create a file named `fantech-x9.desktop` and add the following content:
+
+```bash
+[Desktop Entry]
+Name=Fantech X9 Driver
+Comment=Frontend app to control Fantech X9 mouse
+Exec=python3 ~/FantechX9ThorDriver/driver_frontend.py
+Icon=mouse
+Terminal=false
+Type=Application
+Categories=Utility;
+```
+Save & exit
+
+### 3. Copy file yout .desktop file
+```bash
+cp fantech-x9.desktop ~/.local/share/applications/
+```
+then
+```bash
+chmod +x ~/.local/share/applications/fantech-x9.desktop
+```
+
+### 4. Launch the app
+
+✅Done!
 
