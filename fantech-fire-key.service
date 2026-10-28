@@ -1,0 +1,18 @@
+# Opsional: jalankan Fire Key otomatis setiap login (tanpa buka GUI).
+# Pasang:
+#   mkdir -p ~/.config/systemd/user
+#   cp fantech-fire-key.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now fantech-fire-key.service
+# Ubah path di ExecStart kalau folder project-mu beda.
+# Python harus punya modul evdev (apt install python3-evdev -> pakai /usr/bin/python3).
+[Unit]
+Description=Fantech X9 Thor Fire Key
+
+[Service]
+ExecStart=/usr/bin/python3 %h/Documents/FantechX9ThorDriver/fire_key.py --daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

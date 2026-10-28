@@ -175,18 +175,8 @@ class Driver(object):
         # print([hex(i) for i in payload])
 
     def find_closest_dpi(self, DPI):
-        if DPI in self.supported_dpis:
-            return DPI
-
-        difference = 4800
-        best_match = int()
-        for supported in self.supported_dpis:
-            temp_diff = DPI - supported
-            # print(temp_diff if temp_diff > 0 else temp_diff * -1)
-            if difference >= (temp_diff if temp_diff > 0 else temp_diff * -1):
-                best_match = supported
-                difference = temp_diff
-        return best_match
+        """Kembalikan DPI yang didukung mouse dan paling dekat dengan DPI yang diminta"""
+        return min(self.supported_dpis, key=lambda supported: abs(supported - DPI))
 
 
 class DriverApi(Driver):

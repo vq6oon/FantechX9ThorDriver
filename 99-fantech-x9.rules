@@ -1,0 +1,13 @@
+# Fantech X9 Thor - akses non-root untuk driver + Fire Key
+# Install: sudo cp 99-fantech-x9.rules /etc/udev/rules.d/
+#          sudo usermod -aG input $USER     (lalu logout/login)
+#          sudo udevadm control --reload && sudo udevadm trigger
+
+# Konfigurasi USB (driver_backend.py)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="18f8", ATTRS{idProduct}=="0fc0", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Event input mouse (dibaca/di-grab oleh fire_key.py)
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="18f8", ATTRS{id/product}=="0fc0", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Virtual device untuk mengirim klik
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"

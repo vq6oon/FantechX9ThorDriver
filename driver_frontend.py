@@ -1,9 +1,12 @@
 import driver_backend
+import fire_key
+import signal
 import gi
 import configparser
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GLib
 
 driver_api = driver_backend.DriverApi
 
@@ -39,6 +42,17 @@ class driver_frontend(Gtk.Window, driver_api):
             "backward": "backward"
         }
 
+        # Fire Key (software, via evdev/uinput - lihat fire_key.py)
+        # Berjalan sebagai daemon terpisah, jadi tetap aktif walau GUI ditutup.
+        # Pengaturan disimpan di ~/.config/fantech-x9/fire_key.conf
+        fire = fire_key.load_settings()
+        self.fire_key_enabled = fire_key.daemon_pid() is not None
+        self.fire_key_mode = fire["mode"]
+        self.fire_key_trigger = fire["trigger"]
+        self.fire_key_target = fire["target"]
+        self.fire_key_cps = fire["cps"]
+        self.fire_key_delay = fire["double_delay_ms"]
+
         self.cyclic_colors = {"Yellow": 1, "Blue": 1, "Violet": 1, "Green": 1, "Red": 1, "Cyan": 1, "White": 1}
         ########################################################################
 
@@ -48,13 +62,24 @@ class driver_frontend(Gtk.Window, driver_api):
         self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(self.vbox)
 
-        self.dpis = [Gtk.Scale.new_with_range(Gtk.Orientation.VERTICAL, 200, 4800, 200) for _ in range(6)]
+        # Slider bekerja di index list supported_dpis (0..11), jadi cuma bisa
+        # berhenti di DPI yang valid. Scroll mouse = naik/turun satu step.
+        last_index = len(self.supported_dpis) - 1
+        self.dpi_scroll_acc = [0.0 for _ in range(6)]
+        self.dpis = [Gtk.Scale.new_with_range(Gtk.Orientation.VERTICAL, 0, last_index, 1) for _ in range(6)]
         for i in range(6):
             self.dpis[i].set_inverted(True)
-            self.dpis[i].set_value(self.profile_dpi_configs[i])
+            self.dpis[i].set_digits(0)
+            self.dpis[i].set_round_digits(0)
+            self.dpis[i].set_value_pos(Gtk.PositionType.TOP)
+            self.dpis[i].set_value(self.dpi_to_index(self.profile_dpi_configs[i]))
+            self.dpis[i].connect("format-value", self.on_dpi_format)
+            self.dpis[i].connect("scroll-event", self.on_dpi_scrolled, i)
             self.dpis[i].connect("value-changed", self.on_dpi_changed, i)
-            for j in self.supported_dpis:
-                self.dpis[i].add_mark(j, Gtk.PositionType.LEFT)
+            for index in range(len(self.supported_dpis)):
+                self.dpis[i].add_mark(index, Gtk.PositionType.LEFT)
+            # sinkronkan nilai awal (mis. dari config lama yang nilainya tidak valid)
+            self.profile_dpi_configs[i] = self.supported_dpis[int(self.dpis[i].get_value())]
 
         self.profile_state = [Gtk.CheckButton() for _ in range(6)]
         for i in range(6):
@@ -273,6 +298,56 @@ class driver_frontend(Gtk.Window, driver_api):
             self.hbox_cyclic_color_state.pack_start(self.cyclic_colors_state[prof], True, True, 0)
             prof += 1
 
+        # Fire Key
+        self.fire_key_label = Gtk.Label()
+        self.fire_key_label.set_margin_top(20)
+        self.fire_key_label.set_label("Fire Key (software):")
+        self.fire_key_label.set_halign(Gtk.Align.START)
+        self.vbox.pack_start(self.fire_key_label, False, True, 0)
+
+        self.fire_key_check = Gtk.CheckButton(label="Enable Fire Key")
+        self.fire_key_check.set_active(self.fire_key_enabled)
+        self.fire_key_check.connect("toggled", self.on_fire_key_toggled)
+        self.vbox.pack_start(self.fire_key_check, False, True, 0)
+
+        self.fire_grid = Gtk.Grid(column_spacing=6, row_spacing=6)
+        self.vbox.pack_start(self.fire_grid, False, False, 0)
+
+        self.fire_mode_combo = self.make_fire_combo(fire_key.MODES, self.fire_key_mode,
+                                                    self.on_fire_mode_changed)
+        self.fire_trigger_combo = self.make_fire_combo(fire_key.BUTTONS, self.fire_key_trigger,
+                                                       self.on_fire_trigger_changed)
+        self.fire_target_combo = self.make_fire_combo(fire_key.BUTTONS, self.fire_key_target,
+                                                      self.on_fire_target_changed)
+
+        self.fire_cps_spin = Gtk.SpinButton.new_with_range(1, 50, 1)
+        self.fire_cps_spin.set_value(self.fire_key_cps)
+        self.fire_cps_spin.connect("value-changed", self.on_fire_cps_changed)
+
+        self.fire_delay_spin = Gtk.SpinButton.new_with_range(5, 100, 5)
+        self.fire_delay_spin.set_value(self.fire_key_delay)
+        self.fire_delay_spin.connect("value-changed", self.on_fire_delay_changed)
+
+        rows = [("Mode:", self.fire_mode_combo),
+                ("Trigger button:", self.fire_trigger_combo),
+                ("Output click:", self.fire_target_combo),
+                ("Auto click (clicks/sec):", self.fire_cps_spin),
+                ("Double click delay (ms):", self.fire_delay_spin)]
+        for row, (text, widget) in enumerate(rows):
+            label = Gtk.Label(label=text)
+            label.set_halign(Gtk.Align.START)
+            widget.set_hexpand(True)
+            self.fire_grid.attach(label, 0, row, 1, 1)
+            self.fire_grid.attach(widget, 1, row, 1, 1)
+
+        self.fire_key_note = Gtk.Label()
+        self.fire_key_note.set_label("Tetap aktif di background walau jendela ini ditutup.")
+        self.fire_key_note.set_halign(Gtk.Align.START)
+        self.vbox.pack_start(self.fire_key_note, False, True, 0)
+
+        # Ctrl+C menutup GUI saja, Fire Key (daemon) tidak ikut berhenti
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, self.on_quit_signal)
+
         self.action_bar = Gtk.ActionBar()
         self.vbox.pack_end(self.action_bar, False, False, 0)
 
@@ -377,6 +452,79 @@ class driver_frontend(Gtk.Window, driver_api):
         for key, value in temp_dict.items():
             self.current_buttons_state[key] = value
 
+    def make_fire_combo(self, items, active, callback):
+        combo = Gtk.ComboBoxText()
+        for item in items:
+            combo.append_text(item)
+        combo.set_active(items.index(active))
+        combo.connect("changed", callback)
+        return combo
+
+    def on_fire_key_toggled(self, button):
+        self.fire_key_enabled = button.get_active()
+        self.apply_fire_key()
+
+    def on_fire_mode_changed(self, combo):
+        self.fire_key_mode = combo.get_active_text()
+        self.apply_fire_key()
+
+    def on_fire_trigger_changed(self, combo):
+        self.fire_key_trigger = combo.get_active_text()
+        self.apply_fire_key()
+
+    def on_fire_target_changed(self, combo):
+        self.fire_key_target = combo.get_active_text()
+        self.apply_fire_key()
+
+    def on_fire_cps_changed(self, spin):
+        self.fire_key_cps = spin.get_value_as_int()
+        self.apply_fire_key()
+
+    def on_fire_delay_changed(self, spin):
+        self.fire_key_delay = spin.get_value_as_int()
+        self.apply_fire_key()
+
+    def on_quit_signal(self):
+        Gtk.main_quit()
+        return False
+
+    def apply_fire_key(self):
+        fire_key.save_settings({"enabled": self.fire_key_enabled,
+                                "mode": self.fire_key_mode,
+                                "trigger": self.fire_key_trigger,
+                                "target": self.fire_key_target,
+                                "cps": self.fire_key_cps,
+                                "double_delay_ms": self.fire_key_delay})
+        if not self.fire_key_enabled:
+            fire_key.stop_daemon()
+            return
+        if fire_key.daemon_pid() is None:
+            fire_key.clear_status()
+            try:
+                fire_key.start_daemon()
+            except OSError as exception:
+                self.show_fire_key_error(str(exception))
+                return
+            GLib.timeout_add(1500, self.check_fire_key_status)
+
+    def check_fire_key_status(self):
+        if not self.fire_key_enabled:
+            return False
+        status = fire_key.read_status()
+        if status.startswith("error"):
+            self.show_fire_key_error(status[len("error:"):].strip())
+        elif fire_key.daemon_pid() is None:
+            self.show_fire_key_error("Daemon langsung berhenti. Cek log: " + fire_key.LOG_FILE)
+        return False
+
+    def show_fire_key_error(self, message):
+        alert = Gtk.MessageDialog(transient_for=self, message_type=Gtk.MessageType.ERROR,
+                                  buttons=Gtk.ButtonsType.CLOSE, text="Fire Key gagal dijalankan")
+        alert.format_secondary_text(message)
+        alert.run()
+        alert.destroy()
+        self.fire_key_check.set_active(False)
+
     def reconfigure_button_clicked(self, button):
         self.startup()
 
@@ -448,11 +596,36 @@ class driver_frontend(Gtk.Window, driver_api):
 
         self.liberate()
 
+    def dpi_to_index(self, dpi):
+        return self.supported_dpis.index(self.find_closest_dpi(dpi))
+
+    def on_dpi_format(self, scale, value):
+        index = max(0, min(len(self.supported_dpis) - 1, int(round(value))))
+        return str(self.supported_dpis[index])
+
+    def on_dpi_scrolled(self, scale, event, profile):
+        step = 0
+        if event.direction == Gdk.ScrollDirection.UP:
+            step = 1
+        elif event.direction == Gdk.ScrollDirection.DOWN:
+            step = -1
+        elif event.direction == Gdk.ScrollDirection.SMOOTH:
+            ok, dx, dy = event.get_scroll_deltas()
+            if ok:
+                # akumulasi supaya touchpad tidak melompat banyak step sekaligus
+                self.dpi_scroll_acc[profile] += -dy
+                if abs(self.dpi_scroll_acc[profile]) >= 1:
+                    step = 1 if self.dpi_scroll_acc[profile] > 0 else -1
+                    self.dpi_scroll_acc[profile] = 0.0
+        if step:
+            index = int(round(scale.get_value())) + step
+            index = max(0, min(len(self.supported_dpis) - 1, index))
+            scale.set_value(index)
+        return True  # event habis di sini, tidak diproses bawaan GTK
+
     def on_dpi_changed(self, scale, profile):
-        value = int(scale.get_value())
-        value = self.find_closest_dpi(value)
-        scale.set_value(value)
-        self.profile_dpi_configs[profile] = value
+        index = max(0, min(len(self.supported_dpis) - 1, int(round(scale.get_value()))))
+        self.profile_dpi_configs[profile] = self.supported_dpis[index]
 
     def on_color_changed(self, color, profile):
         self.profile_color_container[profile] = color.get_rgba()
