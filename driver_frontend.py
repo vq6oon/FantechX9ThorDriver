@@ -3,33 +3,71 @@ import fire_key
 import signal
 import gi
 import configparser
+import subprocess
+from string import Template
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
 
 driver_api = driver_backend.DriverApi
 
-MD3_CSS = b"""
-/* Minimalist Clean White & Grey - Crisp Text */
+LIGHT_PALETTE = {
+    "bg": "#ffffff",
+    "bg_alt": "#f5f5f7",
+    "surface": "#ffffff",
+    "subtle": "#fafafc",
+    "border": "#d1d1d6",
+    "border_strong": "#8e8e93",
+    "text": "#1d1d1f",
+    "text_sub": "#3a3a3c",
+    "hover": "#f2f2f7",
+    "active": "#e5e5ea",
+    "sel": "#d1d1d6",
+    "accent": "#2c2c2e",
+    "accent_hover": "#1a1a1c",
+    "on_accent": "#ffffff",
+    "shadow": "rgba(0, 0, 0, 0.15)",
+}
+
+DARK_PALETTE = {
+    "bg": "#1c1c1e",
+    "bg_alt": "#242426",
+    "surface": "#2c2c2e",
+    "subtle": "#242426",
+    "border": "#3a3a3c",
+    "border_strong": "#636366",
+    "text": "#f2f2f7",
+    "text_sub": "#d1d1d6",
+    "hover": "#3a3a3c",
+    "active": "#48484a",
+    "sel": "#48484a",
+    "accent": "#e5e5ea",
+    "accent_hover": "#ffffff",
+    "on_accent": "#1d1d1f",
+    "shadow": "rgba(0, 0, 0, 0.5)",
+}
+
+CSS_TEMPLATE = Template("""
+/* Minimalist Clean - Crisp Text */
 * {
     font-family: "Sans";
 }
 
-window, window.background {
-    background-color: #f5f5f7;
-    color: #1d1d1f;
+window, window.background, dialog, messagedialog, popover, popover.background, menu, .menu, colorchooser {
+    background-color: $bg;
+    color: $text;
     font-size: 13px;
 }
 
-label, button, headerbar, .titlebar {
-    color: #1d1d1f;
+label, button, headerbar, .titlebar, menuitem, cell, cellview {
+    color: $text;
     text-shadow: none;
     -gtk-icon-shadow: none;
 }
 
 headerbar, .titlebar {
-    background-color: #f5f5f7;
+    background-color: $bg_alt;
     background-image: none;
-    border-bottom: 1px solid #d1d1d6;
+    border-bottom: 1px solid $border;
     box-shadow: none;
     padding: 8px 16px;
 }
@@ -37,31 +75,137 @@ headerbar, .titlebar {
 headerbar .title, .card-title {
     font-weight: 600;
     font-size: 14px;
-    color: #1d1d1f;
+    color: $text;
+}
+
+/* Dialog & Color Chooser Styling */
+dialog, dialog.background, messagedialog, window.dialog,
+colorchooser, colorchooser dialog, .color-chooser,
+colorchooser box, colorchooser grid, colorchooser stack, colorchooser notebook,
+colorchooser editor, colorchooser palette {
+    background-color: $bg;
+    color: $text;
+}
+
+dialog headerbar, dialog .titlebar {
+    background-color: $bg_alt;
+    border-bottom: 1px solid $border;
+}
+
+dialog actionarea, dialog .action-area {
+    background-color: $bg;
+}
+
+/* Dropdown Menus & Popovers (ComboBox mapping, etc) */
+window.popup, window.popup decoration,
+menu, .menu, popover, popover.background, popover menu, combobox window, combobox menu, combobox popover {
+    background-color: $surface;
+    background-image: none;
+    color: $text;
+    border: 1px solid $border;
+    border-radius: 0px;
+    box-shadow: 0 4px 12px $shadow;
+    padding: 4px 0;
+}
+
+menuitem, popover modelbutton {
+    background-color: $surface;
+    background-image: none;
+    color: $text;
+    border: 1px solid $border;
+    border-radius: 0px;
+    padding: 6px 14px;
+    margin: 2px 4px;
+}
+
+menuitem label, popover modelbutton label, menuitem cell, menuitem cellview, menu cellview {
+    background-color: transparent;
+    color: $text;
+}
+
+menuitem:hover, menuitem:selected, popover modelbutton:hover {
+    background-color: $sel;
+    background-image: none;
+    border: 1px solid $border_strong;
+    color: $text;
+}
+
+menuitem:hover label, menuitem:selected label, popover modelbutton:hover label,
+menuitem:hover cellview, menuitem:selected cellview,
+menuitem:hover cell, menuitem:selected cell {
+    background-color: transparent;
+    color: $text;
+}
+
+/* Combos, Entries & Spin buttons */
+combobox {
+    background: none;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+combobox button, combobox button.combo, button.combo, spinbutton, spinbutton entry, entry {
+    background-image: none;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border;
+    border-radius: 0px;
+    padding: 4px 8px;
+    box-shadow: none;
+}
+combobox button:hover, button.combo:hover {
+    background-color: $hover;
+    border-color: $border_strong;
+}
+combobox button cellview {
+    background-color: transparent;
+    color: $text;
+}
+combobox arrow {
+    color: $text;
+    -gtk-icon-shadow: none;
+}
+spinbutton {
+    padding: 0;
+}
+spinbutton entry {
+    border: none;
+}
+spinbutton button {
+    background-image: none;
+    background-color: $surface;
+    color: $text;
+    border: none;
+    border-left: 1px solid $border;
+    border-radius: 0px;
+    box-shadow: none;
+}
+spinbutton button:hover {
+    background-color: $hover;
 }
 
 /* StackSwitcher (Tabs Header) */
 stackswitcher {
-    background-color: #e5e5ea;
-    border: 1px solid #d1d1d6;
+    background-color: $active;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 0px;
 }
 stackswitcher button {
-    background: #ffffff;
+    background: $surface;
     border: none;
-    border-right: 1px solid #d1d1d6;
+    border-right: 1px solid $border;
     border-radius: 0px;
     padding: 6px 14px;
-    color: #3a3a3c;
+    color: $text_sub;
     font-weight: 500;
 }
 stackswitcher button:last-child {
     border-right: none;
 }
 stackswitcher button:checked {
-    background-color: #2c2c2e;
-    color: #ffffff;
+    background-color: $accent;
+    color: $on_accent;
 }
 stackswitcher button label {
     color: inherit;
@@ -69,58 +213,58 @@ stackswitcher button label {
 
 /* Cards */
 .card-frame {
-    background-color: #ffffff;
-    border: 1px solid #d1d1d6;
+    background-color: $surface;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 16px;
     margin: 8px 12px;
 }
 
 .profile-card {
-    background-color: #ffffff;
-    border: 1px solid #d1d1d6;
+    background-color: $surface;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 12px 6px;
 }
 .profile-card:hover {
-    border-color: #8e8e93;
+    border-color: $border_strong;
 }
 .profile-card.active-profile {
-    background-color: #fafafc;
-    border: 2px solid #2c2c2e;
+    background-color: $subtle;
+    border: 2px solid $accent;
 }
 
 .dpi-badge {
-    background-color: #e5e5ea;
-    color: #1d1d1f;
+    background-color: $active;
+    color: $text;
     font-weight: 700;
     font-size: 12px;
     border-radius: 0px;
     padding: 3px 8px;
 }
 .profile-card.active-profile .dpi-badge {
-    background-color: #2c2c2e;
-    color: #ffffff;
+    background-color: $accent;
+    color: $on_accent;
 }
 
 .profile-card label, checkbutton label {
-    color: #1d1d1f;
+    color: $text;
     font-weight: 600;
 }
 
 /* Sliders */
 scale trough {
-    background-color: #e5e5ea;
+    background-color: $active;
     border-radius: 0px;
     min-width: 6px;
     min-height: 120px;
 }
 scale highlight {
-    background-color: #2c2c2e;
+    background-color: $accent;
     border-radius: 0px;
 }
 scale slider {
-    background-color: #2c2c2e;
+    background-color: $accent;
     border-radius: 0px;
     min-width: 16px;
     min-height: 16px;
@@ -129,9 +273,9 @@ scale slider {
 /* Buttons */
 button {
     background-image: none;
-    background-color: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #d1d1d6;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 6px 16px;
     box-shadow: none;
@@ -140,66 +284,62 @@ button label {
     color: inherit;
 }
 button:hover {
-    background-color: #f2f2f7;
-    border-color: #8e8e93;
+    background-color: $hover;
+    border-color: $border_strong;
 }
 button:active {
-    background-color: #e5e5ea;
+    background-color: $active;
 }
 
 button.primary-btn {
-    background-color: #2c2c2e;
-    color: #ffffff;
-    border: none;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 6px 16px;
-    font-weight: 500;
+    font-weight: 600;
 }
 button.primary-btn label {
-    color: #ffffff;
+    color: $text;
 }
 button.primary-btn:hover {
-    background-color: #1a1a1c;
+    background-color: $hover;
+    border-color: $border_strong;
+}
+button.primary-btn:active {
+    background-color: $sel;
+    border-color: $border_strong;
 }
 
 button.secondary-btn {
-    background-color: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #d1d1d6;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 6px 16px;
     font-weight: 500;
 }
 button.secondary-btn label {
-    color: #1d1d1f;
+    color: $text;
 }
 button.secondary-btn:hover {
-    background-color: #f2f2f7;
+    background-color: $hover;
 }
 
 actionbar button {
-    background-color: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #d1d1d6;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border;
     border-radius: 0px;
     padding: 6px 16px;
 }
 actionbar button label {
-    color: #1d1d1f;
-}
-
-/* Combos & Spin buttons */
-combobox button, spinbutton, spinbutton entry {
-    background-color: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #d1d1d6;
-    border-radius: 0px;
-    padding: 4px 8px;
+    color: $text;
 }
 
 /* Switches */
 switch {
-    background-color: #d1d1d6;
+    background-color: $border;
     border-radius: 0px;
     min-width: 40px;
     min-height: 20px;
@@ -208,29 +348,60 @@ switch slider {
     border-radius: 0px;
 }
 switch:checked {
-    background-color: #2c2c2e;
+    background-color: $accent;
 }
 
 /* Bottom Action Bar */
 actionbar {
-    background-color: #f5f5f7;
-    border-top: 1px solid #d1d1d6;
+    background-color: $bg_alt;
+    border-top: 1px solid $border;
     padding: 8px 16px;
 }
-"""
+""")
 
 
-def apply_custom_theme():
+def system_prefers_dark():
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+            capture_output=True, text=True, timeout=2
+        ).stdout
+        if "prefer-dark" in out:
+            return True
+        if "prefer-light" in out or "default" in out:
+            return False
+    except (OSError, subprocess.SubprocessError):
+        pass
     settings = Gtk.Settings.get_default()
     if settings:
-        settings.set_property("gtk-application-prefer-dark-theme", False)
-    css_provider = Gtk.CssProvider()
-    css_provider.load_from_data(MD3_CSS)
+        theme = settings.get_property("gtk-theme-name") or ""
+        return "dark" in theme.lower()
+    return False
+
+
+_theme_provider = None
+
+
+def apply_custom_theme(mode="System"):
+    global _theme_provider
+    dark = system_prefers_dark() if mode == "System" else (mode == "Dark")
+    palette = DARK_PALETTE if dark else LIGHT_PALETTE
+
+    settings = Gtk.Settings.get_default()
+    if settings:
+        settings.set_property("gtk-application-prefer-dark-theme", dark)
+
     screen = Gdk.Screen.get_default()
-    if screen:
-        Gtk.StyleContext.add_provider_for_screen(
-            screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+    if not screen:
+        return
+    if _theme_provider:
+        Gtk.StyleContext.remove_provider_for_screen(screen, _theme_provider)
+    _theme_provider = Gtk.CssProvider()
+    _theme_provider.load_from_data(CSS_TEMPLATE.substitute(palette).encode())
+    Gtk.StyleContext.add_provider_for_screen(
+        screen, _theme_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+
 
 
 class driver_frontend(Gtk.Window, driver_api):
@@ -280,7 +451,9 @@ class driver_frontend(Gtk.Window, driver_api):
         ########################################################################
 
         self.config_location = "driver.conf"
+        self.theme_mode = "System"
         self.startup()
+        apply_custom_theme(self.theme_mode)
 
         # Main Layout VBox
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -328,6 +501,20 @@ class driver_frontend(Gtk.Window, driver_api):
         self.reconfigure_button.get_style_context().add_class("secondary-btn")
         self.reconfigure_button.connect("clicked", self.reconfigure_button_clicked)
         self.action_bar.pack_start(self.reconfigure_button)
+
+        # Theme selector
+        theme_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        theme_lbl = Gtk.Label(label="Theme:")
+        theme_box.pack_start(theme_lbl, False, False, 0)
+        self.theme_modes = ["System", "Light", "Dark"]
+        self.theme_combo = Gtk.ComboBoxText()
+        for m in self.theme_modes:
+            self.theme_combo.append_text(m)
+        self.theme_combo.set_active(self.theme_modes.index(self.theme_mode)
+                                    if self.theme_mode in self.theme_modes else 0)
+        self.theme_combo.connect("changed", self.on_theme_changed)
+        theme_box.pack_start(self.theme_combo, False, False, 0)
+        self.action_bar.pack_start(theme_box)
 
         self.save_button = Gtk.Button(label="Save Config")
         self.save_button.get_style_context().add_class("secondary-btn")
@@ -712,6 +899,7 @@ class driver_frontend(Gtk.Window, driver_api):
         config["Cyclic_Colors"] = self.cyclic_colors
         config["Scroll_Wheel"] = {"type": self.current_scrollwheel_state}
         config["Button_Config"] = dict(zip(self.current_buttons_state.keys(), self.current_buttons_state.values()))
+        config["Appearance"] = {"theme": self.theme_mode}
 
         with open(self.config_location, "w") as configfile:
             config.write(configfile)
@@ -720,45 +908,67 @@ class driver_frontend(Gtk.Window, driver_api):
         config = configparser.ConfigParser()
         config.read(self.config_location)
 
-        temp_dict = config["Active_Profile"]
-        for key, value in temp_dict.items():
-            self.current_active_profile = int(value)
+        # Keep defaults for missing sections/keys (e.g. older config versions).
+        self.current_active_profile = config.getint(
+            "Active_Profile", "profile",
+            fallback=self.current_active_profile
+        )
+        self.current_active_profile = max(1, min(6, self.current_active_profile))
 
-        prof = 0
-        temp_dict = config["Profile_DPIs"]
-        for key, value in temp_dict.items():
-            self.profile_dpi_configs[prof] = int(value)
-            prof += 1
+        profiles = [f"profile_{i}" for i in range(1, 7)]
 
-        prof = 0
-        temp_dict = config["Profile_States"]
-        for key, value in temp_dict.items():
-            self.profile_states[prof] = int(value)
-            prof += 1
+        for i, key in enumerate(profiles):
+            self.profile_dpi_configs[i] = config.getint(
+                "Profile_DPIs", key, fallback=self.profile_dpi_configs[i]
+            )
+            self.profile_states[i] = config.getint(
+                "Profile_States", key, fallback=self.profile_states[i]
+            )
+            self.profile_color_configs[i] = config.get(
+                "Profile_Colors", key, fallback=self.profile_color_configs[i]
+            )
 
-        prof = 0
-        temp_dict = config["Profile_Colors"]
-        for key, value in temp_dict.items():
-            self.profile_color_configs[prof] = value
-            prof += 1
+        self.rgb_color_change_scheme = config.get(
+            "Color_Scheme", "type",
+            fallback=self.rgb_color_change_scheme
+        )
+        self.current_scheme_timer = config.getint(
+            "Color_Scheme", "duration",
+            fallback=self.current_scheme_timer
+        )
+        self.current_scheme_timer = max(1, min(6, self.current_scheme_timer))
 
-        temp_dict = config["Color_Scheme"]
-        self.rgb_color_change_scheme = temp_dict["type"]
-        self.current_scheme_timer = int(temp_dict["duration"])
+        for color_name, default_state in self.cyclic_colors.items():
+            self.cyclic_colors[color_name] = config.getint(
+                "Cyclic_Colors", color_name.lower(),
+                fallback=default_state
+            )
 
-        temp_dict = dict(config["Cyclic_Colors"])
-        temp_values = list(temp_dict.values())
-        temp_keys = list(temp_dict.keys())
-        for prof in range(len(temp_dict)):
-            temp_keys[prof] = temp_keys[prof].capitalize()
-            self.cyclic_colors[temp_keys[prof]] = int(temp_values[prof])
+        self.current_scrollwheel_state = config.get(
+            "Scroll_Wheel", "type",
+            fallback=self.current_scrollwheel_state
+        )
 
-        temp_dict = config["Scroll_Wheel"]
-        self.current_scrollwheel_state = temp_dict["type"]
+        for button_name, default_state in self.current_buttons_state.items():
+            self.current_buttons_state[button_name] = config.get(
+                "Button_Config", button_name,
+                fallback=default_state
+            )
 
-        temp_dict = config["Button_Config"]
-        for key, value in temp_dict.items():
-            self.current_buttons_state[key] = value
+        # Appearance was already saved, but previously never restored.
+        self.theme_mode = config.get(
+            "Appearance", "theme", fallback=self.theme_mode
+        )
+        if self.theme_mode not in ("System", "Light", "Dark"):
+            self.theme_mode = "System"
+
+    def on_theme_changed(self, combo):
+        theme = combo.get_active_text()
+        if theme not in self.theme_modes:
+            return
+
+        self.theme_mode = theme
+        apply_custom_theme(theme)
 
     def make_fire_combo(self, items, active, callback):
         combo = Gtk.ComboBoxText()
