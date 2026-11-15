@@ -337,18 +337,51 @@ actionbar button label {
     color: $text;
 }
 
+/* Checkboxes & Radio Buttons */
+checkbutton check, radiobutton radio {
+    background-image: none;
+    background-color: $surface;
+    color: $text;
+    border: 1px solid $border_strong;
+    box-shadow: none;
+}
+checkbutton check {
+    border-radius: 0px;
+}
+radiobutton radio {
+    border-radius: 50%;
+}
+checkbutton check:checked, radiobutton radio:checked {
+    background-color: $accent;
+    color: $on_accent;
+}
+checkbutton:hover check, radiobutton:hover radio {
+    border-color: $text;
+}
+
 /* Switches */
 switch {
     background-color: $border;
+    border: 1px solid $border_strong;
     border-radius: 0px;
     min-width: 40px;
     min-height: 20px;
 }
 switch slider {
+    background-image: none;
+    background-color: $surface;
+    border: 1px solid $border_strong;
     border-radius: 0px;
+    min-width: 16px;
+    min-height: 16px;
 }
 switch:checked {
     background-color: $accent;
+    border-color: $accent;
+}
+switch:checked slider {
+    background-color: $on_accent;
+    border-color: $on_accent;
 }
 
 /* Bottom Action Bar */
@@ -462,7 +495,7 @@ class driver_frontend(Gtk.Window, driver_api):
         # Header Stack Switcher (Tabs) - Full Width
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
-        self.stack.set_transition_duration(200)
+        self.stack.set_transition_duration(100)
 
         self.stack_switcher = Gtk.StackSwitcher()
         self.stack_switcher.set_stack(self.stack)
